@@ -15,11 +15,11 @@ from PIL import Image
 count = 0
 n = 0
 chat_history = []
-chain = ''
+chain = None  # Initialize the chain as None
 pdf_image_container = st.empty()  # Container for displaying PDF image
 
 # Set your OpenAI API key here
-os.environ['OPENAI_API_KEY'] = 'your_api_key_openai'
+os.environ['OPENAI_API_KEY'] = 'open_AI_api_key'
 
 # Streamlit UI setup
 st.title("")  # Clear the default title
@@ -41,7 +41,7 @@ def process_file(file_content):
 
     pdf_search = Chroma.from_documents(documents, embeddings)
 
-    chain = ConversationalRetrievalChain.from_llm(ChatOpenAI(temperature=0.3),
+    chain = ConversationalRetrievalChain.from_llm(ChatOpenAI(model_name="gpt-3.5-turbo"),  # Use ChatGPT 3.5 Turbo
                                                   retriever=pdf_search.as_retriever(search_kwargs={"k": 1}),
                                                   return_source_documents=True)
     return chain
