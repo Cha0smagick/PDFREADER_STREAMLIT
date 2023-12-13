@@ -16,12 +16,17 @@ count = 0
 n = 0
 chat_history = []
 chain = ''
+pdf_image_container = st.empty()  # Container for displaying PDF image
 
 # Set your OpenAI API key here
-os.environ['OPENAI_API_KEY'] = 'Your_open_ai_key_here'
+os.environ['OPENAI_API_KEY'] = 'your_api_key_openai'
 
 # Streamlit UI setup
-st.title("PDF Chatbot")
+st.title("")  # Clear the default title
+st.image("https://i.ibb.co/2j2gGW1/logo-inif.png", use_column_width=True)  # Display the logo centered
+
+# Add the app name centered
+st.markdown("<h1 style='text-align: center;'>INIFREADER</h1>", unsafe_allow_html=True)
 
 # Function to process the PDF file and create a conversation chain
 def process_file(file_content):
@@ -64,12 +69,12 @@ def generate_response(query, pdf_content):
     st.write(response_text)
 
     pdf_data = BytesIO(pdf_content)
-    doc = fitz.open(pdf_data)
+    doc = fitz.open(stream=pdf_data.read(), filetype="pdf")
     page = doc[n]
     pix = page.get_pixmap(matrix=fitz.Matrix(300 / 72, 300 / 72))
     image = Image.frombytes('RGB', [pix.width, pix.height], pix.samples)
-
-    st.image(image)
+    
+    pdf_image_container.image(image)  # Display PDF image
 
 # Streamlit UI elements
 query = st.text_input("Ask your PDF?")
