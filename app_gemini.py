@@ -6,23 +6,61 @@ from io import BytesIO
 import google.generativeai as genai
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
+import spacy
+import subprocess
+
+# Función para descargar el modelo de spaCy si aún no está instalado
+def download_spacy_model(model_name="en_core_web_sm"):
+    try:
+        # Intenta cargar el modelo para ver si ya está instalado
+        spacy.load(model_name)
+        print(f"Modelo de spaCy '{model_name}' ya está instalado.")
+    except OSError:
+        # Si no está instalado, lo descarga e instala
+        print(f"Descargando e instalando el modelo '{model_name}'...")
+        subprocess.run(["python", "-m", "spacy", "download", model_name])
+
+# Llama a la función para asegurarte de que el modelo está instalado
+download_spacy_model()
+
+# Cargar el modelo de spaCy
+nlp = spacy.load("en_core_web_sm")
 
 # Configuración de Google Gemini
-GOOGLE_API_KEY = 'google_api_key'
+GOOGLE_API_KEY = 'AIzaSyAkbU3CsZ-xmOhRF1XfdlVxasRtt9gdRMk'
 genai.configure(api_key=GOOGLE_API_KEY)
 model = genai.GenerativeModel('gemini-pro')
 
-# Función para encontrar oraciones relevantes en el texto
+# Función para enriquecer el texto con entidades y conceptos semánticos
+def enrich_text(text):
+    doc = nlp(text)
+    enriched_sentences = []
+    for sent in doc.sents:
+        entities = " ".join([ent.text for ent in sent.ents])
+        enriched_sentence = f"{sent.text} {entities}"
+        enriched_sentences.append(enriched_sentence)
+    return " ".join(enriched_sentences)
+
+# Función mejorada para encontrar oraciones relevantes
 def find_relevant_sentences(question, text, num_sentences=5):
     nltk.download('punkt')
-    sentences = nltk.sent_tokenize(text)
+    enriched_text = enrich_text(text)
+    sentences = nltk.sent_tokenize(enriched_text)
     vectorizer = TfidfVectorizer().fit([question] + sentences)
     question_vec = vectorizer.transform([question])
     sentences_vec = vectorizer.transform(sentences)
 
     similarities = cosine_similarity(question_vec, sentences_vec).flatten()
-    relevant_indices = similarities.argsort()[-num_sentences:][::-1]
-    
+
+    # Mejora del sistema de ponderación
+    sorted_indices = similarities.argsort()[::-1]
+    relevant_indices = []
+    for idx in sorted_indices:
+        if len(relevant_indices) < num_sentences:
+            relevant_indices.append(idx)
+        else:
+            break
+
     relevant_sentences = [sentences[i] for i in relevant_indices]
     return " ".join(relevant_sentences)
 
