@@ -1,0 +1,9 @@
+google-generativeai
+langchain
+pypdf
+PyMuPDF
+scikit-learn
+nltk
+transformers
+torch
+spacy
