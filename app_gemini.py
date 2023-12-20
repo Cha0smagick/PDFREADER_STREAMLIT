@@ -27,7 +27,7 @@ download_spacy_model()
 nlp = spacy.load("en_core_web_sm")
 
 # Configuración de Google Gemini
-GOOGLE_API_KEY = 'your_google_api_key'
+GOOGLE_API_KEY = 'google_api_key'
 genai.configure(api_key=GOOGLE_API_KEY)
 model = genai.GenerativeModel('gemini-pro')
 
