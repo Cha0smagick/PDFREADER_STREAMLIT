@@ -11,6 +11,8 @@ from spacy.matcher import PhraseMatcher
 import subprocess
 from langdetect import detect
 from deep_translator import GoogleTranslator
+from nltk.corpus import wordnet
+from nltk.tokenize import word_tokenize
 
 # Diccionario de modelos de spaCy por idioma
 SPACY_MODELS = {
@@ -20,6 +22,11 @@ SPACY_MODELS = {
     "fr": "fr_core_news_sm",
     "it": "it_core_news_sm"
 }
+
+# Descargar recursos de NLTK
+nltk.download('punkt', quiet=True)
+nltk.download('averaged_perceptron_tagger', quiet=True)
+nltk.download('wordnet', quiet=True)
 
 # Función para descargar el modelo de spaCy si aún no está instalado
 def download_spacy_model(language_code):
@@ -33,7 +40,7 @@ def download_spacy_model(language_code):
         spacy.load(model_name)  # Cargar el modelo después de instalarlo
 
 # Configuración de Google Gemini
-GOOGLE_API_KEY = 'google_api_key'
+GOOGLE_API_KEY = 'your_google_api_key'
 genai.configure(api_key=GOOGLE_API_KEY)
 model = genai.GenerativeModel('gemini-pro')
 
@@ -66,21 +73,37 @@ def enrich_text(text, nlp):
         enriched_sentences.append(enriched_sentence)
     return " ".join(enriched_sentences)
 
+# Función para extraer palabras clave
+def extract_keywords(text, pos_tags=['NN', 'NNS', 'NNP', 'NNPS', 'VB', 'VBD', 'VBG', 'VBN', 'VBP', 'VBZ', 'JJ', 'JJR', 'JJS']):
+    tokens = word_tokenize(text)
+    tagged = nltk.pos_tag(tokens)
+    keywords = [word for word, tag in tagged if tag in pos_tags]
+    return keywords
+
+# Función para obtener sinónimos de una palabra
+def get_synonyms(word):
+    synonyms = set()
+    for syn in wordnet.synsets(word):
+        for lemma in syn.lemmas():
+            synonyms.add(lemma.name())
+    return list(synonyms)
+
 # Función mejorada para encontrar información relevante
 def find_relevant_information(question, text, nlp):
-    # Descargar punkt para nltk, si aún no está instalado
-    nltk.download('punkt', quiet=True)
+    # Extraer palabras clave de la pregunta
+    question_keywords = extract_keywords(question)
 
-    # Procesar la pregunta para extraer entidades
-    question_doc = nlp(question)
-    question_entities = [ent.text for ent in question_doc.ents]
+    # Expandir las palabras clave con sinónimos
+    expanded_keywords = set(question_keywords)
+    for word in question_keywords:
+        expanded_keywords.update(get_synonyms(word))
 
-    # Crear un PhraseMatcher en spaCy para encontrar coincidencias de entidades en el texto
+    # Crear un PhraseMatcher en spaCy para encontrar coincidencias en el texto
     matcher = PhraseMatcher(nlp.vocab, attr="LOWER")
-    patterns = [nlp.make_doc(entity) for entity in question_entities]
-    matcher.add("Entities", patterns)
+    patterns = [nlp.make_doc(keyword) for keyword in expanded_keywords]
+    matcher.add("Keywords", patterns)
 
-    # Procesar el texto completo y encontrar oraciones que contengan entidades similares
+    # Procesar el texto y encontrar oraciones relevantes
     doc = nlp(text)
     relevant_sentences = set()
     for sent in doc.sents:
