@@ -27,17 +27,18 @@ download_spacy_model()
 nlp = spacy.load("en_core_web_sm")
 
 # Configuración de Google Gemini
-GOOGLE_API_KEY = 'AIzaSyAkbU3CsZ-xmOhRF1XfdlVxasRtt9gdRMk'
+GOOGLE_API_KEY = 'your_google_api_key'
 genai.configure(api_key=GOOGLE_API_KEY)
 model = genai.GenerativeModel('gemini-pro')
 
-# Función para enriquecer el texto con entidades y conceptos semánticos
+# Función para enriquecer el texto con análisis sintáctico y semántico
 def enrich_text(text):
     doc = nlp(text)
     enriched_sentences = []
     for sent in doc.sents:
         entities = " ".join([ent.text for ent in sent.ents])
-        enriched_sentence = f"{sent.text} {entities}"
+        deps = " ".join([token.dep_ for token in sent])
+        enriched_sentence = f"{sent.text} {entities} {deps}"
         enriched_sentences.append(enriched_sentence)
     return " ".join(enriched_sentences)
 
