@@ -27,7 +27,7 @@ download_spacy_model()
 nlp = spacy.load("en_core_web_sm")
 
 # Configuración de Google Gemini
-GOOGLE_API_KEY = 'your_google_api_key'
+GOOGLE_API_KEY = 'AIzaSyAkbU3CsZ-xmOhRF1XfdlVxasRtt9gdRMk'
 genai.configure(api_key=GOOGLE_API_KEY)
 model = genai.GenerativeModel('gemini-pro')
 
@@ -75,9 +75,17 @@ def find_relevant_information(question, text):
 
 # Función para generar una respuesta con Gemini
 def generate_response(query, context):
-    prompt = f"Contexto: {context} Pregunta: {query}"
-    response = model.generate_content(prompt)
-    return response.text
+    try:
+        prompt = f"Contexto: {context} Pregunta: {query}"
+        response = model.generate_content(prompt)
+        return response.text
+    except ValueError as e:
+        # Verificar si el error se debe a un problema con el prompt
+        if "none were returned" in str(e):
+            return "Lo siento, no puedo procesar esa pregunta debido a las restricciones de políticas de Google Gemini."
+        else:
+            # Si es otro tipo de ValueError, se re-lanza la excepción
+            raise e
 
 # Interfaz de usuario de Streamlit
 st.title("PDF Contextual Question Answering")
