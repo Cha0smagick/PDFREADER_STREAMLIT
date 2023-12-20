@@ -7,6 +7,7 @@ import google.generativeai as genai
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 import spacy
+from spacy.matcher import PhraseMatcher
 import subprocess
 from langdetect import detect
 from deep_translator import GoogleTranslator
@@ -32,7 +33,7 @@ def download_spacy_model(language_code):
         spacy.load(model_name)  # Cargar el modelo después de instalarlo
 
 # Configuración de Google Gemini
-GOOGLE_API_KEY = 'your_google_api_key'
+GOOGLE_API_KEY = 'google_api_key'
 genai.configure(api_key=GOOGLE_API_KEY)
 model = genai.GenerativeModel('gemini-pro')
 
@@ -65,21 +66,43 @@ def enrich_text(text, nlp):
         enriched_sentences.append(enriched_sentence)
     return " ".join(enriched_sentences)
 
-# Función para encontrar oraciones relevantes y manejar diferentes tipos de preguntas
+# Función mejorada para encontrar información relevante
 def find_relevant_information(question, text, nlp):
-    nltk.download('punkt')
-    enriched_text = enrich_text(text, nlp)
-    sentences = nltk.sent_tokenize(enriched_text)
+    # Descargar punkt para nltk, si aún no está instalado
+    nltk.download('punkt', quiet=True)
 
-    vectorizer = TfidfVectorizer().fit([question] + sentences)
-    question_vec = vectorizer.transform([question])
-    sentences_vec = vectorizer.transform(sentences)
+    # Procesar la pregunta para extraer entidades
+    question_doc = nlp(question)
+    question_entities = [ent.text for ent in question_doc.ents]
 
-    similarities = cosine_similarity(question_vec, sentences_vec).flatten()
-    sorted_indices = similarities.argsort()[::-1]
-    relevant_indices = sorted_indices[:5]
+    # Crear un PhraseMatcher en spaCy para encontrar coincidencias de entidades en el texto
+    matcher = PhraseMatcher(nlp.vocab, attr="LOWER")
+    patterns = [nlp.make_doc(entity) for entity in question_entities]
+    matcher.add("Entities", patterns)
 
-    relevant_sentences = [sentences[i] for i in relevant_indices]
+    # Procesar el texto completo y encontrar oraciones que contengan entidades similares
+    doc = nlp(text)
+    relevant_sentences = set()
+    for sent in doc.sents:
+        matches = matcher(sent.as_doc())
+        if matches:
+            relevant_sentences.add(sent.text.strip())
+
+    # Si no se encuentran oraciones relevantes, usar el enfoque de TF-IDF como respaldo
+    if not relevant_sentences:
+        enriched_text = enrich_text(text, nlp)
+        sentences = nltk.sent_tokenize(enriched_text)
+
+        vectorizer = TfidfVectorizer().fit([question] + sentences)
+        question_vec = vectorizer.transform([question])
+        sentences_vec = vectorizer.transform(sentences)
+
+        similarities = cosine_similarity(question_vec, sentences_vec).flatten()
+        sorted_indices = similarities.argsort()[::-1]
+        relevant_indices = sorted_indices[:5]
+
+        relevant_sentences = [sentences[i] for i in relevant_indices]
+
     return " ".join(relevant_sentences)
 
 # Función para generar una respuesta con Gemini
