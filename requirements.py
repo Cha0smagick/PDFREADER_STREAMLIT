@@ -7,3 +7,5 @@ nltk
 transformers
 torch
 spacy
+langdetect
+deep-translator
