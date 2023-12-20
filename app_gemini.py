@@ -40,7 +40,7 @@ def download_spacy_model(language_code):
         spacy.load(model_name)  # Cargar el modelo después de instalarlo
 
 # Configuración de Google Gemini
-GOOGLE_API_KEY = 'your_google_api_key'
+GOOGLE_API_KEY = 'AIzaSyAkbU3CsZ-xmOhRF1XfdlVxasRtt9gdRMk'
 genai.configure(api_key=GOOGLE_API_KEY)
 model = genai.GenerativeModel('gemini-pro')
 
@@ -128,17 +128,21 @@ def find_relevant_information(question, text, nlp):
 
     return " ".join(relevant_sentences)
 
-# Función para generar una respuesta con Gemini
+# Función para generar una respuesta con Gemini, con reintento
 def generate_response(query, context):
-    try:
-        prompt = f"Contexto: {context} Pregunta: {query}"
-        response = model.generate_content(prompt)
-        return response.text
-    except ValueError as e:
-        if "none were returned" in str(e):
-            return "Lo siento, no puedo procesar esa pregunta debido a las restricciones de políticas de Google Gemini."
-        else:
-            raise e
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            prompt = f"Contexto: {context} Pregunta: {query}"
+            response = model.generate_content(prompt)
+            return response.text
+        except ValueError as e:
+            if "none were returned" in str(e):
+                return "Lo siento, no puedo procesar esa pregunta debido a las restricciones de políticas de Google Gemini."
+            elif attempt < max_retries - 1:
+                print(f"Error detectado, intentando de nuevo (Intento {attempt + 2}/{max_retries})...")
+            else:
+                return "Esta búsqueda no es permitida por las políticas y condiciones de Google Gemini."
 
 # Interfaz de usuario de Streamlit
 st.title("PDF Contextual Question Answering")
