@@ -40,7 +40,7 @@ def download_spacy_model(language_code):
         spacy.load(model_name)  # Cargar el modelo después de instalarlo
 
 # Configuración de Google Gemini
-GOOGLE_API_KEY = 'AIzaSyAkbU3CsZ-xmOhRF1XfdlVxasRtt9gdRMk'
+GOOGLE_API_KEY = 'your_google_api_key'
 genai.configure(api_key=GOOGLE_API_KEY)
 model = genai.GenerativeModel('gemini-pro')
 
