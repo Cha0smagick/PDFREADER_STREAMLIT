@@ -5,7 +5,7 @@ import nltk
 import fitz  # PyMuPDF
 from io import BytesIO
 import google.generativeai as genai
-from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 import spacy
 from spacy.matcher import PhraseMatcher
@@ -114,41 +114,47 @@ def get_synonyms(word):
 
 # Función mejorada para encontrar información relevante
 def find_relevant_information(question, text, nlp, pdf_title):
-    # Extraer palabras clave de la pregunta
-    question_keywords = extract_keywords(question)
+    # Extract keywords and their synonyms from the question
+    question_keywords = set(extract_keywords(question))
+    for word in question_keywords.copy():
+        question_keywords.update(get_synonyms(word))
 
-    # Expandir las palabras clave con sinónimos
-    expanded_keywords = set(question_keywords)
-    for word in question_keywords:
-        expanded_keywords.update(get_synonyms(word))
-
-    # Crear un PhraseMatcher en spaCy para encontrar coincidencias en el texto
+    # Create a PhraseMatcher in spaCy to find matches in the text
     matcher = PhraseMatcher(nlp.vocab, attr="LOWER")
-    patterns = [nlp.make_doc(keyword) for keyword in expanded_keywords]
+    patterns = [nlp.make_doc(keyword) for keyword in question_keywords]
     matcher.add("Keywords", patterns)
 
-    # Procesar el texto y encontrar oraciones relevantes
+    # Process the text and find sentences with matches or related words
     doc = nlp(text)
     relevant_sentences = set()
+
     for sent in doc.sents:
         matches = matcher(sent.as_doc())
         if matches:
             relevant_sentences.add(sent.text.strip())
+        else:
+            # Check if the sentence contains related words to the keywords
+            related_words = set(token.text for token in sent if token.text.lower() in question_keywords)
+            if related_words:
+                relevant_sentences.add(sent.text.strip())
 
-    # Si no se encuentran oraciones relevantes, usar el enfoque de TF-IDF como respaldo
-    if not relevant_sentences:
+    # If not enough relevant sentences, use the TF-IDF approach as a backup
+    if len(relevant_sentences) < 5:
         enriched_text = enrich_text(text, nlp, pdf_title)
         sentences = nltk.sent_tokenize(enriched_text)
 
-        vectorizer = TfidfVectorizer().fit([question] + sentences)
+        # Use CountVectorizer to get document-term matrix
+        vectorizer = CountVectorizer().fit([question] + sentences)
         question_vec = vectorizer.transform([question])
         sentences_vec = vectorizer.transform(sentences)
 
+        # Calculate cosine similarity
         similarities = cosine_similarity(question_vec, sentences_vec).flatten()
         sorted_indices = similarities.argsort()[::-1]
         relevant_indices = sorted_indices[:5]
 
-        relevant_sentences = [sentences[i] for i in relevant_indices]
+        # Add relevant sentences based on TF-IDF
+        relevant_sentences.update(sentences[i] for i in relevant_indices)
 
     return " ".join(relevant_sentences)
 
