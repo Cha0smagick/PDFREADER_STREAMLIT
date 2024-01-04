@@ -1,4 +1,5 @@
 import streamlit as st
+import subprocess
 import os
 import nltk
 import fitz  # PyMuPDF
@@ -8,16 +9,18 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 import spacy
 from spacy.matcher import PhraseMatcher
-import subprocess
+from spacy.lang.en import STOP_WORDS as en_stopwords
+from spacy.lang.es import STOP_WORDS as es_stopwords
 from langdetect import detect
 from deep_translator import GoogleTranslator
 from nltk.corpus import wordnet
 from nltk.tokenize import word_tokenize
+from nltk.stem import WordNetLemmatizer, PorterStemmer
 
 # Diccionario de modelos de spaCy por idioma
 SPACY_MODELS = {
-    "en": "en_core_web_sm",
-    "es": "es_core_news_sm",
+    "en": "en_core_web_lg",  # Using a larger English model
+    "es": "es_core_news_lg",  # Using a larger Spanish model
     "de": "de_core_news_sm",
     "fr": "fr_core_news_sm",
     "it": "it_core_news_sm"
@@ -30,7 +33,7 @@ nltk.download('wordnet', quiet=True)
 
 # Función para descargar el modelo de spaCy si aún no está instalado
 def download_spacy_model(language_code):
-    model_name = SPACY_MODELS.get(language_code, "en_core_web_sm")
+    model_name = SPACY_MODELS.get(language_code, "en_core_web_lg")
     try:
         spacy.load(model_name)
         print(f"Modelo de spaCy '{model_name}' ya está instalado.")
@@ -56,10 +59,28 @@ def translate_text(text, target_lang):
     translator = GoogleTranslator(source='auto', target=target_lang)
     return translator.translate(text)
 
+# Función para lematizar y aplicar stemming en el texto
+def lemmatize_and_stem(text, nlp):
+    lemmatizer = WordNetLemmatizer()
+    porter_stemmer = PorterStemmer()
+
+    # Tokenize and lemmatize
+    doc = nlp(text)
+    lemmatized_and_stemmed = [lemmatizer.lemmatize(token.text) + " " + porter_stemmer.stem(token.text) for token in doc]
+
+    return " ".join(lemmatized_and_stemmed)
+
+# Función para eliminar stopwords en el texto
+def remove_stopwords(text, nlp):
+    doc = nlp(text)
+    without_stopwords = [token.text for token in doc if token.text.lower() not in nlp.Defaults.stop_words]
+    return " ".join(without_stopwords)
+
 # Función para enriquecer el texto con análisis sintáctico, semántico y estructural
-def enrich_text(text, nlp):
+def enrich_text(text, nlp, pdf_title):
     doc = nlp(text)
     enriched_sentences = []
+
     for sent in doc.sents:
         entities = " ".join([ent.text for ent in sent.ents])
         deps = " ".join([token.dep_ for token in sent])
@@ -68,9 +89,10 @@ def enrich_text(text, nlp):
 
         enriched_sentence = f"{sent.text} {entities} {deps}"
         if is_title:
-            enriched_sentence += " TITLE_OR_SUBTITLE"
+            enriched_sentence += f" TITLE_OR_SUBTITLE {pdf_title}"
 
         enriched_sentences.append(enriched_sentence)
+
     return " ".join(enriched_sentences)
 
 # Función para extraer palabras clave
@@ -89,7 +111,7 @@ def get_synonyms(word):
     return list(synonyms)
 
 # Función mejorada para encontrar información relevante
-def find_relevant_information(question, text, nlp):
+def find_relevant_information(question, text, nlp, pdf_title):
     # Extraer palabras clave de la pregunta
     question_keywords = extract_keywords(question)
 
@@ -113,7 +135,7 @@ def find_relevant_information(question, text, nlp):
 
     # Si no se encuentran oraciones relevantes, usar el enfoque de TF-IDF como respaldo
     if not relevant_sentences:
-        enriched_text = enrich_text(text, nlp)
+        enriched_text = enrich_text(text, nlp, pdf_title)
         sentences = nltk.sent_tokenize(enriched_text)
 
         vectorizer = TfidfVectorizer().fit([question] + sentences)
@@ -153,13 +175,12 @@ def generate_response(query, context):
                     break
 
     # Limpiar y re-procesar la respuesta combinada
-    final_context = " ".join(combined_response.split())
+    cleaned_response = " ".join(combined_response.split())
+    final_prompt = f"Contexto: {cleaned_response} Pregunta: {query}"
     try:
-        final_prompt = f"Contexto: {final_context} Pregunta: {query}"
-        final_response = model.generate_content(final_prompt)
-        return final_response.text
+        return model.generate_content(final_prompt).text
     except ValueError as e:
-        return "Error al procesar la respuesta final: " + str(e)
+        return f"Error al procesar la respuesta final: {e}"
 
 # Interfaz de usuario de Streamlit
 st.title("PDF Contextual Question Answering")
@@ -169,15 +190,23 @@ query = st.text_input("Introduce tu pregunta")
 if st.button("Enviar") and pdf_file is not None and query:
     pdf_content = BytesIO(pdf_file.read())
     text = ""
+    pdf_title = pdf_file.name.split('.')[0] if pdf_file.name else "Unknown"
+    
     with fitz.open(stream=pdf_content, filetype="pdf") as doc:
         text = " ".join(page.get_text() for page in doc)
 
     detected_lang = detect_language(text)
     download_spacy_model(detected_lang)
-    nlp = spacy.load(SPACY_MODELS.get(detected_lang, "en_core_web_sm"))
+    nlp = spacy.load(SPACY_MODELS.get(detected_lang, "en_core_web_lg"))
+
+    # Apply lemmatization and stemming
+    text = lemmatize_and_stem(text, nlp)
+
+    # Remove stopwords
+    text = remove_stopwords(text, nlp)
 
     translated_query = translate_text(query, detected_lang)
-    context = find_relevant_information(translated_query, text, nlp)
+    context = find_relevant_information(translated_query, text, nlp, pdf_title)
 
     answer = generate_response(query, context)
     st.write(answer)
