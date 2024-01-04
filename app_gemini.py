@@ -45,7 +45,7 @@ def download_spacy_model(language_code):
 # Configuración de Google Gemini
 GOOGLE_API_KEY = 'your_google_api_key'
 genai.configure(api_key=GOOGLE_API_KEY)
-model = genai.GenerativeModel('gemini-pro')
+model_genai = genai.GenerativeModel('gemini-pro')
 
 # Función para detectar el idioma de un texto
 def detect_language(text):
@@ -72,6 +72,8 @@ def lemmatize_and_stem(text, nlp):
 
 # Función para eliminar stopwords en el texto
 def remove_stopwords(text, nlp):
+    # Increase max_length to handle long texts
+    nlp.max_length = len(text) + 100000
     doc = nlp(text)
     without_stopwords = [token.text for token in doc if token.text.lower() not in nlp.Defaults.stop_words]
     return " ".join(without_stopwords)
@@ -161,7 +163,7 @@ def generate_response(query, context):
         for attempt in range(max_retries):
             try:
                 prompt = f"Contexto: {chunk} Pregunta: {query}"
-                response = model.generate_content(prompt)
+                response = model_genai.generate_content(prompt)
                 combined_response += response.text + " "
                 break
             except ValueError as e:
@@ -178,12 +180,12 @@ def generate_response(query, context):
     cleaned_response = " ".join(combined_response.split())
     final_prompt = f"Contexto: {cleaned_response} Pregunta: {query}"
     try:
-        return model.generate_content(final_prompt).text
+        return model_genai.generate_content(final_prompt).text
     except ValueError as e:
         return f"Error al procesar la respuesta final: {e}"
 
 # Interfaz de usuario de Streamlit
-st.title("PDF Contextual Question Answering")
+st.title("Combined PDF Contextual Question Answering with Gemini")
 pdf_file = st.file_uploader("Sube un PDF", type=["pdf"])
 query = st.text_input("Introduce tu pregunta")
 
