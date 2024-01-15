@@ -1,11 +1,7 @@
+streamlit
 google-generativeai
+python-dotenv
 langchain
-pypdf
-PyMuPDF
-scikit-learn
-nltk
-transformers
-torch
-spacy
-langdetect
-deep-translator
+PyPDF2
+faiss-cpu
+langchain_google_genai
